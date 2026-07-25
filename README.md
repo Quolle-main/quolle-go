@@ -5,7 +5,7 @@ Official Go client for the [Quolle](https://quolle.com) email API.
 ## Install
 
 ```bash
-go get github.com/quolle/quolle-go
+go get github.com/Quolle-main/quolle-go
 ```
 
 Requires Go 1.21+. No third-party dependencies.
@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/quolle/quolle-go"
+	"github.com/Quolle-main/quolle-go"
 )
 
 func main() {
@@ -89,6 +89,25 @@ out, _ := client.Emails.SendBatch(ctx, []quolle.SendParams{
 	{From: "hello@mail.yourdomain.com", To: quolle.To("b@example.com"), Subject: "Hi Bob", HTML: "<p>Hi Bob</p>"},
 })
 fmt.Printf("Queued %d: %v\n", out.Queued, out.IDs)
+```
+
+### Attachments
+
+Attach files with the `Attachments` field. `quolle.FileAttachment` reads a file and
+base64-encodes it (guessing the content type). Up to 20 files, 10 MB total.
+
+```go
+pdf, err := quolle.FileAttachment("invoice.pdf")
+if err != nil {
+	log.Fatal(err)
+}
+client.Emails.Send(ctx, quolle.SendParams{
+	From:        "billing@mail.yourdomain.com",
+	To:          quolle.To("customer@example.com"),
+	Subject:     "Your invoice",
+	HTML:        "<p>Invoice attached.</p>",
+	Attachments: []quolle.Attachment{pdf},
+})
 ```
 
 ## Retrieve & cancel

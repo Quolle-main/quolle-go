@@ -2,8 +2,12 @@ package quolle
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"mime"
 	"net/url"
+	"os"
+	"path/filepath"
 )
 
 // Emails provides email operations. Access it via Client.Emails.
@@ -44,7 +48,39 @@ type SendParams struct {
 	Variables   map[string]any `json:"variables,omitempty"`
 	ReplyTo     string         `json:"replyTo,omitempty"`
 	ScheduledAt string         `json:"scheduledAt,omitempty"`
+	Attachments []Attachment   `json:"attachments,omitempty"`
 	Metadata    map[string]any `json:"metadata,omitempty"`
+}
+
+// Attachment is a file attached to an email. Provide either Content (the raw
+// file bytes, base64-encoded) or Path (a URL Quolle fetches at send time). Set
+// ContentID to embed the file inline via <img src="cid:the-id">. Up to 20
+// attachments, 10 MB total.
+type Attachment struct {
+	Filename    string `json:"filename"`
+	Content     string `json:"content,omitempty"`
+	Path        string `json:"path,omitempty"`
+	ContentType string `json:"contentType,omitempty"`
+	ContentID   string `json:"contentId,omitempty"`
+}
+
+// FileAttachment reads a file from disk and returns an Attachment with its
+// base64-encoded content and a content type guessed from the extension.
+func FileAttachment(path string) (Attachment, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return Attachment{}, err
+	}
+	name := filepath.Base(path)
+	ctype := mime.TypeByExtension(filepath.Ext(name))
+	if ctype == "" {
+		ctype = "application/octet-stream"
+	}
+	return Attachment{
+		Filename:    name,
+		Content:     base64.StdEncoding.EncodeToString(data),
+		ContentType: ctype,
+	}, nil
 }
 
 // SendResult is returned by Send.
