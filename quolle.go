@@ -104,6 +104,10 @@ func New(apiKey string, opts ...Option) *Client {
 type Error struct {
 	// StatusCode is the HTTP status code.
 	StatusCode int
+	// Code is the API's stable, machine-readable error code (e.g.
+	// "validation_error", "rate_limit_exceeded", "warmup_limit_exceeded").
+	// Branch on this rather than on Message. Empty for transport failures.
+	Code string
 	// Message is the human-readable error (from the API's "error" field).
 	Message string
 	// Data holds any extra fields returned alongside "error".
@@ -111,6 +115,9 @@ type Error struct {
 }
 
 func (e *Error) Error() string {
+	if e.Code != "" {
+		return fmt.Sprintf("quolle: [%d %s] %s", e.StatusCode, e.Code, e.Message)
+	}
 	return fmt.Sprintf("quolle: [%d] %s", e.StatusCode, e.Message)
 }
 
@@ -199,6 +206,10 @@ func parseError(status int, raw []byte) *Error {
 		if msg, ok := payload["error"].(string); ok {
 			e.Message = msg
 			delete(payload, "error")
+		}
+		if code, ok := payload["code"].(string); ok {
+			e.Code = code
+			delete(payload, "code")
 		}
 		e.Data = payload
 	}

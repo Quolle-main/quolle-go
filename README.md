@@ -127,6 +127,7 @@ if err != nil {
 	var qe *quolle.Error
 	if errors.As(err, &qe) {
 		fmt.Println(qe.StatusCode) // e.g. 402
+		fmt.Println(qe.Code)       // e.g. "monthly_quota_exceeded" — branch on this
 		fmt.Println(qe.Message)    // e.g. "Monthly limit reached"
 		fmt.Println(qe.Data)       // extra fields, e.g. map[limit:3000]
 	}
