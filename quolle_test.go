@@ -142,7 +142,7 @@ func TestCancel(t *testing.T) {
 func TestErrorResponse(t *testing.T) {
 	c, srv := newTestClient(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(402)
-		_, _ = w.Write([]byte(`{"error":"Monthly limit reached","limit":3000}`))
+		_, _ = w.Write([]byte(`{"code":"monthly_quota_exceeded","error":"Monthly limit reached","limit":3000}`))
 	})
 	defer srv.Close()
 
@@ -156,7 +156,7 @@ func TestErrorResponse(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected *quolle.Error, got %T", err)
 	}
-	if qe.StatusCode != 402 || qe.Message != "Monthly limit reached" {
+	if qe.StatusCode != 402 || qe.Message != "Monthly limit reached" || qe.Code != "monthly_quota_exceeded" {
 		t.Errorf("got %+v", qe)
 	}
 	if qe.Data["limit"].(float64) != 3000 {
@@ -235,5 +235,38 @@ func TestRetry5xxOnPostWithIdempotency(t *testing.T) {
 	}
 	if res.ID != "em_ok" || n != 2 {
 		t.Errorf("id=%q calls=%d (want em_ok, 2)", res.ID, n)
+	}
+}
+
+func TestSendMarketingType(t *testing.T) {
+	var gotBody map[string]any
+	c, srv := newTestClient(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &gotBody)
+		_, _ = w.Write([]byte(`{"id":"em_2"}`))
+	})
+	defer srv.Close()
+	_, err := c.Emails.Send(context.Background(), SendParams{
+		From: "news@mail.acme.com", To: To("u@example.com"), Subject: "Hi", HTML: "<p>x</p>", Type: TypeMarketing,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotBody["type"] != "marketing" {
+		t.Errorf("type = %v", gotBody["type"])
+	}
+}
+
+func TestTransactionalByDefaultOmitsType(t *testing.T) {
+	var gotBody map[string]any
+	c, srv := newTestClient(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &gotBody)
+		_, _ = w.Write([]byte(`{"id":"em_3"}`))
+	})
+	defer srv.Close()
+	_, _ = c.Emails.Send(context.Background(), SendParams{From: "a@b.com", To: To("c@d.com"), Subject: "s", HTML: "<p>x</p>"})
+	if _, present := gotBody["type"]; present {
+		t.Errorf("type should be omitted (server defaults to transactional), got %v", gotBody["type"])
 	}
 }

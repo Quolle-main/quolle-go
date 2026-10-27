@@ -50,7 +50,17 @@ type SendParams struct {
 	ScheduledAt string         `json:"scheduledAt,omitempty"`
 	Attachments []Attachment   `json:"attachments,omitempty"`
 	Metadata    map[string]any `json:"metadata,omitempty"`
+	// Type is the message stream: TypeTransactional (the default) or
+	// TypeMarketing. Marketing mail gets one-click unsubscribe headers and a
+	// footer link, and honours unsubscribes; transactional mail never does.
+	Type string `json:"type,omitempty"`
 }
+
+// Message stream values for SendParams.Type.
+const (
+	TypeTransactional = "transactional"
+	TypeMarketing     = "marketing"
+)
 
 // Attachment is a file attached to an email. Provide either Content (the raw
 // file bytes, base64-encoded) or Path (a URL Quolle fetches at send time). Set
