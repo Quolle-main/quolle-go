@@ -59,6 +59,26 @@ func WithMaxRetries(n int) Option {
 	return func(c *Client) { c.maxRetries = n }
 }
 
+// noRetryCodes are 429s that retrying can't fix: the limit resets at a fixed
+// time (midnight UTC, the next billing period), not in seconds. Returned at once
+// so the caller can queue the send instead of blocking in a retry loop.
+var noRetryCodes = map[string]bool{
+	"daily_quota_exceeded":   true,
+	"warmup_limit_exceeded":  true,
+	"monthly_quota_exceeded": true,
+}
+
+// maxRetryWait: a Retry-After longer than this means "not soon"; return the
+// error instead of sleeping through it.
+const maxRetryWait = 60 * time.Second
+
+// retryAfterTooLong reports whether a Retry-After header asks for longer than
+// maxRetryWait.
+func retryAfterTooLong(retryAfter string) bool {
+	secs, err := strconv.Atoi(strings.TrimSpace(retryAfter))
+	return err == nil && time.Duration(secs)*time.Second > maxRetryWait
+}
+
 // sleepBackoff waits before the next retry: Retry-After if provided, else
 // exponential backoff (0.5s, 1s, 2s, …) capped at 8s with jitter. Respects ctx.
 func sleepBackoff(ctx context.Context, attempt int, retryAfter string) {
@@ -179,10 +199,11 @@ func (c *Client) do(ctx context.Context, method, path string, body any, headers 
 		resp.Body.Close()
 
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			lastErr = parseError(resp.StatusCode, raw)
-			retryable := resp.StatusCode == 429 ||
+			apiErr := parseError(resp.StatusCode, raw)
+			lastErr = apiErr
+			retryable := (resp.StatusCode == 429 && !noRetryCodes[apiErr.Code]) ||
 				((resp.StatusCode >= 500 && resp.StatusCode <= 504) && (idempotent || hasIdem))
-			if attempt < c.maxRetries && retryable {
+			if attempt < c.maxRetries && retryable && !retryAfterTooLong(resp.Header.Get("Retry-After")) {
 				sleepBackoff(ctx, attempt, resp.Header.Get("Retry-After"))
 				continue
 			}
