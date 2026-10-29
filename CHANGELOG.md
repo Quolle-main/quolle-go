@@ -2,6 +2,15 @@
 
 All notable changes to this package. Versions follow [Semantic Versioning](https://semver.org).
 
+## 1.2.0 — 2026-10-29
+
+### Added
+- `client.Domains`: `List`, `Create`, `Get`, `Records`, `Verify`, `Remove`. Add a sending domain, get its DNS records, check DNS on demand, and see verification and warm-up state.
+- `client.APIKeys`: `List`, `Create`, `Remove`. Create keys (full access or sending-only, optionally limited to some domains, optionally expiring) and revoke them.
+- `client.Webhooks` manages endpoints as well as verifying deliveries: `List`, `Create`, `Get`, `Update`, `Remove`, `Test`, `Deliveries`, `Redeliver`, `RotateSecret`, `Events`.
+
+These need a full-access API key; a sending-only key gets `restricted_api_key`. Requires Quolle API support for API-key access to `/v1/keys` and `/v1/webhooks` (live from 29 Oct 2026).
+
 ## 1.1.0 — 2026-10-29
 
 ### Added
