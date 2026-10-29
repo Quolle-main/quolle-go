@@ -1,12 +1,23 @@
 name: CI
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  # Weekly on ubuntu-latest, so a runner or toolchain change fails on a quiet
+  # Monday instead of on the next pull request.
+  schedule:
+    - cron: "17 6 * * 1"
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The go.mod minimum, and the newest release.
+        go: ["1.21", "stable"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.21"
+          go-version: ${{ matrix.go }}
       - run: go vet ./...
       - run: go test ./...
