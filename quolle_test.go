@@ -270,3 +270,40 @@ func TestTransactionalByDefaultOmitsType(t *testing.T) {
 		t.Errorf("type should be omitted (server defaults to transactional), got %v", gotBody["type"])
 	}
 }
+
+func TestQuota429IsReturnedAtOnce(t *testing.T) {
+	for _, code := range []string{"daily_quota_exceeded", "warmup_limit_exceeded"} {
+		var n int
+		c, srv := newTestClient(func(w http.ResponseWriter, r *http.Request) {
+			n++
+			w.WriteHeader(429)
+			_, _ = w.Write([]byte(`{"code":"` + code + `","error":"cap reached"}`))
+		})
+		c.maxRetries = 3
+		_, err := c.Emails.Send(context.Background(), SendParams{From: "a@b.com", To: To("c@d.com"), Subject: "s", HTML: "<p>x</p>"})
+		srv.Close()
+		qe, ok := err.(*Error)
+		if !ok || qe.Code != code {
+			t.Fatalf("%s: err=%v", code, err)
+		}
+		if n != 1 {
+			t.Errorf("%s must not be retried; calls=%d (want 1)", code, n)
+		}
+	}
+}
+
+func TestLongRetryAfterIsNotSleptThrough(t *testing.T) {
+	var n int
+	c, srv := newTestClient(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		w.Header().Set("Retry-After", "3600")
+		w.WriteHeader(429)
+		_, _ = w.Write([]byte(`{"code":"rate_limit_exceeded","error":"slow down"}`))
+	})
+	defer srv.Close()
+	c.maxRetries = 3
+	_, err := c.Emails.Send(context.Background(), SendParams{From: "a@b.com", To: To("c@d.com"), Subject: "s", HTML: "<p>x</p>"})
+	if err == nil || n != 1 {
+		t.Errorf("err=%v calls=%d (want an error after 1 call)", err, n)
+	}
+}
