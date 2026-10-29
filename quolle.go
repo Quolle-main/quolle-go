@@ -26,7 +26,7 @@ import (
 )
 
 // Version is the SDK version, sent in the User-Agent header.
-const Version = "1.1.0"
+const Version = "1.2.0"
 
 const defaultBaseURL = "https://api.quolle.com"
 
@@ -39,6 +39,12 @@ type Client struct {
 
 	// Emails exposes the email operations (Send, SendBatch, Get, Cancel).
 	Emails *Emails
+	// Domains manages sending domains (full-access key).
+	Domains *Domains
+	// APIKeys manages API keys (full-access key).
+	APIKeys *APIKeys
+	// Webhooks manages webhook endpoints (full-access key). See VerifyWebhook for incoming deliveries.
+	Webhooks *Webhooks
 }
 
 // Option customizes a Client.
@@ -117,6 +123,9 @@ func New(apiKey string, opts ...Option) *Client {
 		o(c)
 	}
 	c.Emails = &Emails{client: c}
+	c.Domains = &Domains{client: c}
+	c.APIKeys = &APIKeys{client: c}
+	c.Webhooks = &Webhooks{client: c}
 	return c
 }
 

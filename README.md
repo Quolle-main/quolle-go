@@ -157,6 +157,35 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 HMAC-SHA256 with a 5-minute timestamp window (replay protection). Pass `0` for the default tolerance.
 
+## Domains, API keys and webhooks
+
+These need a **full-access** API key. A sending-only key gets `403` with code `restricted_api_key`, so a key you ship in an app can't create keys or change your domains.
+
+```go
+// Domains
+created, err := client.Domains.Create(ctx, "mail.example.com") // created.DNSRecords to publish
+_, err = client.Domains.Verify(ctx, created.Domain.ID)         // check DNS now
+domains, err := client.Domains.List(ctx)
+
+// API keys
+key, err := client.APIKeys.Create(ctx, quolle.CreateAPIKeyParams{
+	Name: "web app", Scope: quolle.ScopeSending, Domains: []string{"mail.example.com"},
+})
+fmt.Println(key.Key) // shown once
+err = client.APIKeys.Remove(ctx, key.ID)
+
+// Webhook endpoints
+hook, err := client.Webhooks.Create(ctx, "https://example.com/hooks/quolle",
+	[]string{"email.delivered", "email.bounced"})
+// hook.Secret (whsec_…) is shown once; store it for quolle.VerifyWebhook
+_, err = client.Webhooks.Test(ctx, hook.ID)
+failed, err := client.Webhooks.Deliveries(ctx, hook.ID, "failed", 0)
+for _, d := range failed {
+	_ = client.Webhooks.Redeliver(ctx, hook.ID, d.ID)
+}
+newSecret, err := client.Webhooks.RotateSecret(ctx, hook.ID)
+```
+
 ## Automatic retries
 
 Transient failures — HTTP 429 (rate limit) and 5xx, plus network errors — are retried automatically with exponential backoff, honoring the `Retry-After` header. To avoid double-sending, a POST is only retried on a 5xx/network error when you pass an idempotency key; a 429 is always safe to retry (the request was never processed). Quota limits are the exception: `daily_quota_exceeded` and `warmup_limit_exceeded` (and any `Retry-After` over 60 seconds) are returned immediately, because they reset at a fixed time, not in seconds; check `err.(*quolle.Error).Code` and queue the send for later. Tune with `quolle.WithMaxRetries(n)` (default 3).
